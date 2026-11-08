@@ -2,7 +2,7 @@
   const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
   const EL = (cls, css) => { const d = document.createElement('div'); if (cls) d.className = cls; if (css) Object.assign(d.style, css); return d; };
   const g = 0.26, P = 1 + g, T = 9 + 8 * g, K = 100 / T; // 盤面を「マス幅=1、溝=g」の単位で扱う
-  const NAMES = ['赤', '青'], COL = ['#d63a2f', '#2f6fd6'], L = 'abcdefghi';
+  const NAMES = ['黒', '白'], COL = ['#f6e9cf', '#f6e9cf'], L = 'abcdefghi';
   const MSG = { overlap: '壁が重なっています', cross: '壁が交差しています', block: 'ゴールを塞ぐ壁は置けません', none: '壁がもうありません', range: '置けない場所です' };
   let moves = [], idx = 0, mode = 'move', pending = null, down = null, S = Q.create();
   let net = null, redoBuf = [], busy = false, seq = 0, pass = ''; // ネット対戦用
@@ -13,13 +13,14 @@
   // 盤面の構築
   for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) {
     const d = EL('', { left: pct(c * P), top: pct(r * P), width: pct(1), height: pct(1) });
-    if (r === 0) d.style.boxShadow = 'inset 0 4px 0 rgba(214,58,47,.65)';
-    if (r === 8) d.style.boxShadow = 'inset 0 -4px 0 rgba(47,111,214,.65)';
+    if (r === 0) d.style.boxShadow = 'inset 0 4px 0 #111';
+    if (r === 8) d.style.boxShadow = 'inset 0 -4px 0 #fff, inset 0 -5px 0 rgba(0,0,0,.35)';
     $('#cells').appendChild(d);
   }
-  const pawns = [0, 1].map(p => { // 将棋の駒(赤=王、青=玉)。赤は上向き、青は下向き=それぞれのゴール方向
-    const d = EL('pawn p' + p, { width: pct(1), height: pct(1) }), col = p ? '#1f4fbf' : '#c02a1b';
-    d.innerHTML = `<svg viewBox="0 0 40 44"><defs><linearGradient id="w${p}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fcefc8"/><stop offset="1" stop-color="#e2ba7a"/></linearGradient></defs><path d="M20 3.5 31.5 13.5 35 40.5H5L8.5 13.5Z" fill="url(#w${p})" stroke="${col}" stroke-width="2.4" stroke-linejoin="round"/><g stroke="${col}" stroke-width="2.6" stroke-linecap="round" fill="none"><path d="M14 16.5H26M15.5 24H24.5M12 32H28M20 16.5V32"/></g>${p ? `<circle cx="25.5" cy="28" r="1.5" fill="${col}"/>` : ''}</svg>`;
+  const pawns = [0, 1].map(p => { // 囲碁の石(0=黒、1=白)
+    const d = EL('pawn p' + p, { width: pct(1), height: pct(1) });
+    const st = p ? ['#ffffff', '#e8e8e8', '#b4b4b4'] : ['#808080', '#1c1c1c', '#000000'];
+    d.innerHTML = `<svg viewBox="0 0 40 40"><defs><radialGradient id="s${p}" cx=".36" cy=".3" r=".8"><stop offset="0" stop-color="${st[0]}"/><stop offset=".55" stop-color="${st[1]}"/><stop offset="1" stop-color="${st[2]}"/></radialGradient></defs><circle cx="20" cy="20" r="15.5" fill="url(#s${p})" stroke="${p ? '#8a7350' : '#000'}" stroke-width=".9"/><ellipse cx="14.5" cy="12.5" rx="5" ry="3" fill="rgba(255,255,255,${p ? '.9' : '.35'})" transform="rotate(-30 14.5 12.5)"/></svg>`;
     $('#pawns').appendChild(d); return d;
   });
   const wallBox = (o, r, c) => o === 'h'
@@ -57,7 +58,7 @@
     const sb = supabase.createClient(QD_CONFIG.url, QD_CONFIG.key);
     net = { me, sb };
     document.body.classList.add('online');
-    $('.board').classList.toggle('flip', me === 1); // 青は自分が下側に見えるよう盤面を回す
+    $('.board').classList.toggle('flip', me === 1); // 白は自分が下側に見えるよう盤面を回す
     zones[me].classList.remove('top'); zones[me].style.order = 2;
     zones[1 - me].classList.remove('top'); zones[1 - me].classList.add('opp'); zones[1 - me].style.order = 0;
     $('.board').style.order = 1;
@@ -132,7 +133,7 @@
   // 盤面入力(座標から計算するので、縦壁・横壁どちらも確実に選べる)
   const xy = e => {
     const b = inner.getBoundingClientRect(), x = (e.clientX - b.left) / b.width * T, y = (e.clientY - b.top) / b.height * T;
-    return net && net.me === 1 ? [T - x, T - y] : [x, y]; // 青は盤面が180度回っている
+    return net && net.me === 1 ? [T - x, T - y] : [x, y]; // 白は盤面が180度回っている
   };
   const cl = (v, a, b) => Math.max(a, Math.min(b, v));
   const slot = (x, y) => ({ c: cl(Math.round((x + g / 2) / P - 1), 0, 7), r: cl(Math.round((y + g / 2) / P - 1), 0, 7), o: mode });
@@ -184,4 +185,5 @@
   render();
   if (saved) start(saved);
 })();
+
 
