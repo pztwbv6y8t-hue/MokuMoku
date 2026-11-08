@@ -5,6 +5,7 @@
   const NAMES = ['赤', '青'], COL = ['#d63a2f', '#2f6fd6'], L = 'abcdefghi';
   const MSG = { overlap: '壁が重なっています', cross: '壁が交差しています', block: 'ゴールを塞ぐ壁は置けません', none: '壁がもうありません', range: '置けない場所です' };
   let moves = [], idx = 0, mode = 'move', pending = null, down = null, S = Q.create();
+  let net = null, redoBuf = [], busy = false, seq = 0, pass = ''; // ネット対戦用
   const inner = $('#inner'), pct = v => v * K + '%';
   const zones = [0, 1].map(p => $(`.zone[data-p="${p}"]`));
   const q = (p, s) => zones[p].querySelector(s);
@@ -16,9 +17,9 @@
     if (r === 8) d.style.boxShadow = 'inset 0 -4px 0 rgba(47,111,214,.65)';
     $('#cells').appendChild(d);
   }
-  const pawns = [0, 1].map(p => {
-    const d = EL('pawn', { width: pct(1), height: pct(1) }), [a, b, c] = p ? ['#9cc4ff', '#2f6fd6', '#123c8a'] : ['#ff9d8e', '#d63a2f', '#7d1710'];
-    d.innerHTML = `<svg viewBox="0 0 40 44"><defs><radialGradient id="h${p}" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="${a}"/><stop offset=".6" stop-color="${b}"/><stop offset="1" stop-color="${c}"/></radialGradient><linearGradient id="b${p}" x1="0" x2="1"><stop offset="0" stop-color="${b}"/><stop offset=".45" stop-color="${a}"/><stop offset="1" stop-color="${c}"/></linearGradient></defs><ellipse cx="20" cy="40" rx="14" ry="3.6" fill="rgba(0,0,0,.4)"/><path d="M11 38Q14 25 17 20h6q3 5 6 18-9 3.5-18 0z" fill="url(#b${p})"/><circle cx="20" cy="13" r="9.5" fill="url(#h${p})"/><ellipse cx="16.5" cy="9.5" rx="3.2" ry="2" fill="rgba(255,255,255,.7)" transform="rotate(-30 16.5 9.5)"/></svg>`;
+  const pawns = [0, 1].map(p => { // 将棋の駒(赤=王、青=玉)。赤は上向き、青は下向き=それぞれのゴール方向
+    const d = EL('pawn p' + p, { width: pct(1), height: pct(1) }), col = p ? '#1f4fbf' : '#c02a1b';
+    d.innerHTML = `<svg viewBox="0 0 40 44"><defs><linearGradient id="w${p}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fcefc8"/><stop offset="1" stop-color="#e2ba7a"/></linearGradient></defs><path d="M20 3.5 31.5 13.5 35 40.5H5L8.5 13.5Z" fill="url(#w${p})" stroke="${col}" stroke-width="2.4" stroke-linejoin="round"/><g stroke="${col}" stroke-width="2.6" stroke-linecap="round" fill="none"><path d="M14 16.5H26M15.5 24H24.5M12 32H28M20 16.5V32"/></g>${p ? `<circle cx="25.5" cy="28" r="1.5" fill="${col}"/>` : ''}</svg>`;
     $('#pawns').appendChild(d); return d;
   });
   const wallBox = (o, r, c) => o === 'h'
@@ -26,10 +27,76 @@
     : { left: pct(c * P + 1), top: pct(r * P), width: pct(g), height: pct(2 + g) };
 
   const sync = () => { S = Q.replay(moves.slice(0, idx)); };
-  const toast = t => { const e = $('#toast'); e.textContent = t; e.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('show'), 1800); };
+  const toast = t => { const e = $('#toast'); e.textContent = t; e.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('show'), 2200); };
   const fmt = m => `${NAMES[m.p]}: ${m.t === 'm' ? '移動' : (m.o === 'h' ? '横壁' : '縦壁')} ${L[m.c]}${9 - m.r}`;
   const setMode = m => { mode = m; pending = null; render(); };
-  const commit = m => { moves.length = idx; moves.push(m); idx++; sync(); pending = null; mode = 'move'; render(); };
+
+  // ---- ネット対戦(Supabase) ----
+  function setMoves(m, mine) { // サーバーの手の履歴を採用
+    if (JSON.stringify(m) === JSON.stringify(moves)) return;
+    let s; try { s = Q.replay(m); } catch (e) { toast('データが不正です'); return; }
+    if (!mine) redoBuf = [];
+    moves = m; idx = m.length; S = s; pending = null; mode = 'move'; render();
+  }
+  async function push(nm) {
+    if (busy) return false; busy = true;
+    try {
+      const { data: d, error } = await net.sb.rpc('submit_moves', { expected_len: moves.length, new_moves: nm, pass });
+      if (error || !d) { toast('通信エラー'); return false; }
+      if (d.err === 'pass') { localStorage.removeItem('qd-pass'); toast('合言葉が違います'); return false; }
+      if (!d.ok) { toast('相手が先に操作しました'); redoBuf = []; }
+      setMoves(d.moves, d.ok);
+      return d.ok;
+    } catch (e) { toast('通信エラー'); return false; } finally { busy = false; seq++; }
+  }
+  async function startNet(me) {
+    if (!window.supabase || !window.QD_CONFIG || /YOUR/.test(QD_CONFIG.url + QD_CONFIG.key)) { alert('ネット対戦には config.js の設定が必要です(または通信できません)'); return false; }
+    pass = localStorage.getItem('qd-pass') || prompt('合言葉を入力してください') || '';
+    if (!pass) return false;
+    localStorage.setItem('qd-pass', pass);
+    const sb = supabase.createClient(QD_CONFIG.url, QD_CONFIG.key);
+    net = { me, sb };
+    document.body.classList.add('online');
+    $('.board').classList.toggle('flip', me === 1); // 青は自分が下側に見えるよう盤面を回す
+    zones[me].classList.remove('top'); zones[me].style.order = 2;
+    zones[1 - me].classList.remove('top'); zones[1 - me].classList.add('opp'); zones[1 - me].style.order = 0;
+    $('.board').style.order = 1;
+    q(me, 'b').textContent = NAMES[me] + '(あなた)';
+    const pull = async () => {
+      if (busy) return; const s0 = seq;
+      const { data } = await sb.from('quoridor_game').select('moves').eq('id', 1).single();
+      if (data && s0 === seq && !busy) setMoves(data.moves, false);
+    };
+    await pull();
+    setInterval(pull, 2500);
+    document.addEventListener('visibilitychange', pull);
+    sb.channel('qd').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'quoridor_game' }, p => { if (!busy) setMoves(p.new.moves, false); }).subscribe();
+    return true;
+  }
+
+  // ---- 操作 ----
+  function commit(m) {
+    if (net) { redoBuf = []; push([...moves, m]); return; }
+    moves.length = idx; moves.push(m); idx++; sync(); pending = null; mode = 'move'; render();
+  }
+  const undo = () => {
+    if (net) { if (!moves.length) return; const last = moves[moves.length - 1]; push(moves.slice(0, -1)).then(ok => { if (ok) redoBuf.push(last); render(); }); return; }
+    if (idx > 0) { idx--; sync(); pending = null; mode = 'move'; render(); }
+  };
+  const redo = () => {
+    if (net) { if (!redoBuf.length) return; const m = redoBuf[redoBuf.length - 1]; push([...moves, m]).then(ok => { if (ok) redoBuf.pop(); render(); }); return; }
+    if (idx < moves.length) { idx++; sync(); pending = null; render(); }
+  };
+  const restart = () => {
+    if (net) { redoBuf = []; push([]); return; }
+    moves = []; idx = 0; pending = null; mode = 'move'; sync(); render();
+  };
+  function place() {
+    if (!pending) return;
+    const e = Q.wallError(S, pending.o, pending.r, pending.c);
+    if (e) { toast(MSG[e]); return; }
+    commit({ p: S.turn, t: 'w', o: pending.o, r: pending.r, c: pending.c });
+  }
 
   function render() {
     const over = S.win >= 0;
@@ -47,12 +114,13 @@
       q(p, '.bV').setAttribute('aria-pressed', mine && mode === 'v');
       q(p, '.bOk').disabled = !mine || !!err;
       q(p, '.bUndo').disabled = idx === 0;
-      q(p, '.bRedo').disabled = idx === moves.length;
+      q(p, '.bRedo').disabled = net ? !redoBuf.length : idx === moves.length;
     });
     const W = $('#walls'); W.innerHTML = '';
     moves.slice(0, idx).filter(m => m.t === 'w').forEach(m => W.appendChild(EL('w ' + m.o, wallBox(m.o, m.r, m.c))));
     const D = $('#dots'); D.innerHTML = '';
-    if (mode === 'move' && !over) Q.legalMoves(S).forEach(([r, c]) => D.appendChild(EL('dot', { left: pct(c * P), top: pct(r * P), width: pct(1), height: pct(1) })));
+    const myTurn = !net || net.me === S.turn;
+    if (mode === 'move' && !over && myTurn) Q.legalMoves(S).forEach(([r, c]) => D.appendChild(EL('dot', { left: pct(c * P), top: pct(r * P), width: pct(1), height: pct(1) })));
     const pv = $('#pv');
     pv.hidden = !pending;
     if (pending) { Object.assign(pv.style, wallBox(pending.o, pending.r, pending.c)); pv.classList.toggle('bad', !!err); }
@@ -62,12 +130,15 @@
   }
 
   // 盤面入力(座標から計算するので、縦壁・横壁どちらも確実に選べる)
-  const xy = e => { const b = inner.getBoundingClientRect(); return [(e.clientX - b.left) / b.width * T, (e.clientY - b.top) / b.height * T]; };
+  const xy = e => {
+    const b = inner.getBoundingClientRect(), x = (e.clientX - b.left) / b.width * T, y = (e.clientY - b.top) / b.height * T;
+    return net && net.me === 1 ? [T - x, T - y] : [x, y]; // 青は盤面が180度回っている
+  };
   const cl = (v, a, b) => Math.max(a, Math.min(b, v));
   const slot = (x, y) => ({ c: cl(Math.round((x + g / 2) / P - 1), 0, 7), r: cl(Math.round((y + g / 2) / P - 1), 0, 7), o: mode });
   const same = (a, b) => a && b && a.r === b.r && a.c === b.c && a.o === b.o;
   inner.addEventListener('pointerdown', e => {
-    if (S.win >= 0) return;
+    if (S.win >= 0 || busy || (net && net.me !== S.turn)) return;
     const [x, y] = xy(e);
     if (mode === 'move') {
       const c = cl(Math.floor(x / P), 0, 8), r = cl(Math.floor(y / P), 0, 8);
@@ -79,17 +150,8 @@
   inner.addEventListener('pointermove', e => { if (!down) return; const n = slot(...xy(e)); if (!same(n, pending)) { pending = n; render(); } });
   inner.addEventListener('pointerup', () => { if (!down) return; const again = same(down.prev, pending); down = null; if (again) place(); });
   inner.addEventListener('pointercancel', () => { down = null; });
-  function place() {
-    if (!pending) return;
-    const e = Q.wallError(S, pending.o, pending.r, pending.c);
-    if (e) { toast(MSG[e]); return; }
-    commit({ p: S.turn, t: 'w', o: pending.o, r: pending.r, c: pending.c });
-  }
 
-  // ボタン(上下どちらのプレイヤー用も同じ処理)
-  const undo = () => { if (idx > 0) { idx--; sync(); pending = null; mode = 'move'; render(); } };
-  const redo = () => { if (idx < moves.length) { idx++; sync(); pending = null; render(); } };
-  const restart = () => { moves = []; idx = 0; pending = null; mode = 'move'; sync(); render(); };
+  // ボタン
   $$('.bMove').forEach(b => b.onclick = () => setMode('move'));
   $$('.bH').forEach(b => b.onclick = () => setMode('h'));
   $$('.bV').forEach(b => b.onclick = () => setMode('v'));
@@ -98,16 +160,28 @@
   $$('.bRedo').forEach(b => b.onclick = redo);
   $$('.bHist').forEach(b => b.onclick = () => $('#sheet').classList.add('show'));
   $$('.bReset').forEach(b => b.onclick = () => {
-    if (b.classList.contains('arm')) { clearTimeout(b.t); $$('.bReset').forEach(x => { x.classList.remove('arm'); x.textContent = '最初から'; }); restart(); return; }
-    $$('.bReset').forEach(x => { x.classList.remove('arm'); x.textContent = '最初から'; });
-    b.classList.add('arm'); b.textContent = 'もう一度タップ';
-    clearTimeout(b.t); b.t = setTimeout(() => { b.classList.remove('arm'); b.textContent = '最初から'; }, 2500);
+    const clear = () => $$('.bReset').forEach(x => { x.classList.remove('arm'); x.textContent = '最初から'; });
+    if (b.classList.contains('arm')) { clearTimeout(b.t); clear(); restart(); return; }
+    clear(); b.classList.add('arm'); b.textContent = 'もう一度タップ';
+    clearTimeout(b.t); b.t = setTimeout(clear, 2500);
   });
   $('#again').onclick = restart; $('#winUndo').onclick = undo;
   $('#close').onclick = () => $('#sheet').classList.remove('show');
-  $('#list').onclick = e => { const li = e.target.closest('li'); if (li) { idx = +li.dataset.i + 1; sync(); pending = null; render(); } };
+  $('#chg').onclick = () => { localStorage.removeItem('qd-mode'); location.reload(); };
+  $('#list').onclick = e => { const li = e.target.closest('li'); if (li && !net) { idx = +li.dataset.i + 1; sync(); pending = null; render(); } };
 
+  // 起動時のモード選択
+  function start(m) {
+    localStorage.setItem('qd-mode', m); $('#menu').classList.remove('show');
+    if (m === 'local') return;
+    startNet(+m).then(ok => { if (!ok) { localStorage.removeItem('qd-mode'); $('#menu').classList.add('show'); } });
+  }
+  $('#mLocal').onclick = () => start('local');
+  $('#mRed').onclick = () => start('0');
+  $('#mBlue').onclick = () => start('1');
+  const saved = localStorage.getItem('qd-mode');
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('service-worker.js').catch(() => {});
   render();
+  if (saved) start(saved);
 })();
 
