@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>Quoridor Deluxe</title>
-<meta name="theme-color" content="#2a1a10">
+<title>Moku-Moku</title>
+<meta name="theme-color" content="#1c1410">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Quoridor Deluxe">
+<meta name="apple-mobile-web-app-title" content="Moku-Moku">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-192.png">
@@ -16,7 +16,7 @@
 </head>
 <body>
 <div class="wrap">
-<h1>Quoridor <small>Deluxe</small></h1>
+<h1><span class="k">木</span>Moku-Moku</h1>
 <main class="col">
 
 <section class="zone top" data-p="1">
@@ -35,8 +35,11 @@
 
 </main>
 </div>
+<div class="ov show" id="menu"><div class="card"><h2>Moku-Moku</h2><button class="btn gold" id="mLocal">1台で対戦(向かい合わせ)</button><button class="btn" id="mRed">ネット対戦:赤で参加</button><button class="btn" id="mBlue">ネット対戦:青で参加</button><p class="hint">ネット対戦は、友達と別の色を選んでください</p></div></div>
 <div class="ov" id="win"><div class="card"><h2 class="flip" id="winText2"></h2><svg viewBox="0 0 64 40" width="56"><path d="M6 34 L2 8 L18 20 L32 4 L46 20 L62 8 L58 34Z" fill="#d9a93f" stroke="#8a5a14" stroke-width="2"/></svg><h2 id="winText"></h2><button class="btn gold" id="again">もう一度遊ぶ</button><button class="btn" id="winUndo">一手戻す</button></div></div>
-<div class="ov" id="sheet"><div class="card"><h3>操作履歴</h3><ol id="list"></ol><button class="btn" id="close">閉じる</button></div></div>
+<div class="ov" id="sheet"><div class="card"><h3>操作履歴</h3><ol id="list"></ol><button class="btn" id="chg">対戦方法を選び直す</button><button class="btn" id="close">閉じる</button></div></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
 <script src="game.js"></script>
 <script src="script.js"></script>
 </body>
