@@ -1,10 +1,13 @@
 (() => {
-  const $ = s => document.querySelector(s), EL = (cls, css) => { const d = document.createElement('div'); if (cls) d.className = cls; if (css) Object.assign(d.style, css); return d; };
+  const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+  const EL = (cls, css) => { const d = document.createElement('div'); if (cls) d.className = cls; if (css) Object.assign(d.style, css); return d; };
   const g = 0.26, P = 1 + g, T = 9 + 8 * g, K = 100 / T; // 盤面を「マス幅=1、溝=g」の単位で扱う
   const NAMES = ['赤', '青'], COL = ['#d63a2f', '#2f6fd6'], L = 'abcdefghi';
   const MSG = { overlap: '壁が重なっています', cross: '壁が交差しています', block: 'ゴールを塞ぐ壁は置けません', none: '壁がもうありません', range: '置けない場所です' };
-  let moves = [], idx = 0, mode = 'move', pending = null, down = null, S = Q.create(), armT = 0;
+  let moves = [], idx = 0, mode = 'move', pending = null, down = null, S = Q.create();
   const inner = $('#inner'), pct = v => v * K + '%';
+  const zones = [0, 1].map(p => $(`.zone[data-p="${p}"]`));
+  const q = (p, s) => zones[p].querySelector(s);
 
   // 盤面の構築
   for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) {
@@ -30,29 +33,32 @@
 
   function render() {
     const over = S.win >= 0;
+    const err = pending ? Q.wallError(S, pending.o, pending.r, pending.c) : 'x';
     [0, 1].forEach(p => {
       pawns[p].style.left = pct(S.pos[p][1] * P); pawns[p].style.top = pct(S.pos[p][0] * P);
-      $('#pl' + p).classList.toggle('on', !over && S.turn === p);
-      $('#cnt' + p).textContent = S.left[p];
-      $('#pips' + p).innerHTML = Array.from({ length: 10 }, (_, i) => `<i class="${i < S.left[p] ? '' : 'off'}"></i>`).join('');
+      const mine = !over && S.turn === p;
+      q(p, '.pl').classList.toggle('on', mine);
+      q(p, '.cnt').textContent = S.left[p];
+      q(p, '.pips').innerHTML = Array.from({ length: 10 }, (_, i) => `<i class="${i < S.left[p] ? '' : 'off'}"></i>`).join('');
+      q(p, '.bMove').disabled = !mine;
+      q(p, '.bMove').setAttribute('aria-pressed', mine && mode === 'move');
+      q(p, '.bH').disabled = q(p, '.bV').disabled = !mine || S.left[p] <= 0;
+      q(p, '.bH').setAttribute('aria-pressed', mine && mode === 'h');
+      q(p, '.bV').setAttribute('aria-pressed', mine && mode === 'v');
+      q(p, '.bOk').disabled = !mine || !!err;
+      q(p, '.bUndo').disabled = idx === 0;
+      q(p, '.bRedo').disabled = idx === moves.length;
     });
     const W = $('#walls'); W.innerHTML = '';
-    moves.slice(0, idx).filter(m => m.t === 'w').forEach(m => {
-      const d = EL('w ' + m.o, wallBox(m.o, m.r, m.c)); d.style.outline = `1px solid ${COL[m.p]}aa`; W.appendChild(d);
-    });
+    moves.slice(0, idx).filter(m => m.t === 'w').forEach(m => W.appendChild(EL('w ' + m.o, wallBox(m.o, m.r, m.c))));
     const D = $('#dots'); D.innerHTML = '';
     if (mode === 'move' && !over) Q.legalMoves(S).forEach(([r, c]) => D.appendChild(EL('dot', { left: pct(c * P), top: pct(r * P), width: pct(1), height: pct(1) })));
-    const pv = $('#pv'), err = pending ? Q.wallError(S, pending.o, pending.r, pending.c) : 'x';
+    const pv = $('#pv');
     pv.hidden = !pending;
     if (pending) { Object.assign(pv.style, wallBox(pending.o, pending.r, pending.c)); pv.classList.toggle('bad', !!err); }
-    $('#ok').disabled = !!err;
-    $('#mMove').setAttribute('aria-pressed', mode === 'move');
-    $('#mH').setAttribute('aria-pressed', mode === 'h'); $('#mV').setAttribute('aria-pressed', mode === 'v');
-    $('#mH').disabled = $('#mV').disabled = over || S.left[S.turn] <= 0;
-    $('#undo').disabled = idx === 0; $('#redo').disabled = idx === moves.length;
     $('#list').innerHTML = moves.length ? moves.map((m, i) => `<li data-i="${i}" class="${i < idx ? 'done' : ''} ${i === idx - 1 ? 'cur' : ''}">${fmt(m)}</li>`).join('') : '<p>まだ手がありません</p>';
     $('#win').classList.toggle('show', over);
-    if (over) { $('#winText').textContent = NAMES[S.win] + 'の勝利'; $('#winText').style.color = COL[S.win]; }
+    if (over) for (const id of ['#winText', '#winText2']) { $(id).textContent = NAMES[S.win] + 'の勝利'; $(id).style.color = COL[S.win]; }
   }
 
   // 盤面入力(座標から計算するので、縦壁・横壁どちらも確実に選べる)
@@ -71,8 +77,7 @@
     down = { prev: pending }; pending = slot(x, y); inner.setPointerCapture(e.pointerId); render();
   });
   inner.addEventListener('pointermove', e => { if (!down) return; const n = slot(...xy(e)); if (!same(n, pending)) { pending = n; render(); } });
-  const up = () => { if (!down) return; const again = same(down.prev, pending); down = null; if (again) place(); };
-  inner.addEventListener('pointerup', up);
+  inner.addEventListener('pointerup', () => { if (!down) return; const again = same(down.prev, pending); down = null; if (again) place(); });
   inner.addEventListener('pointercancel', () => { down = null; });
   function place() {
     if (!pending) return;
@@ -81,25 +86,28 @@
     commit({ p: S.turn, t: 'w', o: pending.o, r: pending.r, c: pending.c });
   }
 
-  // ボタン
-  $('#mMove').onclick = () => setMode('move');
-  $('#mH').onclick = () => setMode('h'); $('#mV').onclick = () => setMode('v');
-  $('#ok').onclick = place;
+  // ボタン(上下どちらのプレイヤー用も同じ処理)
   const undo = () => { if (idx > 0) { idx--; sync(); pending = null; mode = 'move'; render(); } };
-  $('#undo').onclick = undo; $('#winUndo').onclick = undo;
-  $('#redo').onclick = () => { if (idx < moves.length) { idx++; sync(); pending = null; render(); } };
+  const redo = () => { if (idx < moves.length) { idx++; sync(); pending = null; render(); } };
   const restart = () => { moves = []; idx = 0; pending = null; mode = 'move'; sync(); render(); };
-  $('#again').onclick = restart;
-  $('#reset').onclick = e => {
-    const b = e.currentTarget;
-    if (b.classList.contains('arm')) { clearTimeout(armT); b.classList.remove('arm'); b.textContent = '最初から'; restart(); return; }
+  $$('.bMove').forEach(b => b.onclick = () => setMode('move'));
+  $$('.bH').forEach(b => b.onclick = () => setMode('h'));
+  $$('.bV').forEach(b => b.onclick = () => setMode('v'));
+  $$('.bOk').forEach(b => b.onclick = place);
+  $$('.bUndo').forEach(b => b.onclick = undo);
+  $$('.bRedo').forEach(b => b.onclick = redo);
+  $$('.bHist').forEach(b => b.onclick = () => $('#sheet').classList.add('show'));
+  $$('.bReset').forEach(b => b.onclick = () => {
+    if (b.classList.contains('arm')) { clearTimeout(b.t); $$('.bReset').forEach(x => { x.classList.remove('arm'); x.textContent = '最初から'; }); restart(); return; }
+    $$('.bReset').forEach(x => { x.classList.remove('arm'); x.textContent = '最初から'; });
     b.classList.add('arm'); b.textContent = 'もう一度タップ';
-    armT = setTimeout(() => { b.classList.remove('arm'); b.textContent = '最初から'; }, 2500);
-  };
-  $('#hist').onclick = () => $('#sheet').classList.add('show');
+    clearTimeout(b.t); b.t = setTimeout(() => { b.classList.remove('arm'); b.textContent = '最初から'; }, 2500);
+  });
+  $('#again').onclick = restart; $('#winUndo').onclick = undo;
   $('#close').onclick = () => $('#sheet').classList.remove('show');
   $('#list').onclick = e => { const li = e.target.closest('li'); if (li) { idx = +li.dataset.i + 1; sync(); pending = null; render(); } };
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('service-worker.js').catch(() => {});
   render();
 })();
+
