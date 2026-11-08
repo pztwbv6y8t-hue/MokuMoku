@@ -20,7 +20,7 @@
 <main class="col">
 
 <section class="zone top" data-p="1">
-  <div class="pl"><i class="sw" style="background:var(--blue)"></i><b>青</b><span class="turn">手番</span><span class="pips"></span><em class="cnt">10</em></div>
+  <div class="pl"><i class="sw" style="background:radial-gradient(circle at 35% 30%,#fff,#e6e6e6 55%,#b9b9b9)"></i><b>白</b><span class="turn">手番</span><span class="pips"></span><em class="cnt">10</em></div>
   <div class="row modes"><button class="btn bMove">移動</button><button class="btn bH">横壁 ▬</button><button class="btn bV">縦壁 ▮</button><button class="btn gold bOk" disabled>決定</button></div>
   <div class="row acts"><button class="btn bUndo">↶ 戻す</button><button class="btn bRedo">やり直す ↷</button><button class="btn bHist">履歴</button><button class="btn bReset">最初から</button></div>
 </section>
@@ -28,14 +28,14 @@
 <div class="board"><div class="inner" id="inner"><div id="cells"></div><div id="walls"></div><div id="dots"></div><div class="pv" id="pv" hidden></div><div id="pawns"></div></div><div class="toast" id="toast"></div></div>
 
 <section class="zone bot" data-p="0">
-  <div class="pl"><i class="sw" style="background:var(--red)"></i><b>赤</b><span class="turn">手番</span><span class="pips"></span><em class="cnt">10</em></div>
+  <div class="pl"><i class="sw" style="background:radial-gradient(circle at 35% 30%,#777,#111 55%,#000)"></i><b>黒</b><span class="turn">手番</span><span class="pips"></span><em class="cnt">10</em></div>
   <div class="row modes"><button class="btn bMove">移動</button><button class="btn bH">横壁 ▬</button><button class="btn bV">縦壁 ▮</button><button class="btn gold bOk" disabled>決定</button></div>
   <div class="row acts"><button class="btn bUndo">↶ 戻す</button><button class="btn bRedo">やり直す ↷</button><button class="btn bHist">履歴</button><button class="btn bReset">最初から</button></div>
 </section>
 
 </main>
 </div>
-<div class="ov show" id="menu"><div class="card"><h2>Moku-Moku</h2><button class="btn gold" id="mLocal">1台で対戦(向かい合わせ)</button><button class="btn" id="mRed">ネット対戦:赤で参加</button><button class="btn" id="mBlue">ネット対戦:青で参加</button><p class="hint">ネット対戦は、友達と別の色を選んでください</p></div></div>
+<div class="ov show" id="menu"><div class="card"><h2>Moku-Moku</h2><button class="btn gold" id="mLocal">1台で対戦(向かい合わせ)</button><button class="btn" id="mRed">ネット対戦:黒で参加</button><button class="btn" id="mBlue">ネット対戦:白で参加</button><p class="hint">ネット対戦は、友達と別の色(黒・白)を選んでください</p></div></div>
 <div class="ov" id="win"><div class="card"><h2 class="flip" id="winText2"></h2><svg viewBox="0 0 64 40" width="56"><path d="M6 34 L2 8 L18 20 L32 4 L46 20 L62 8 L58 34Z" fill="#d9a93f" stroke="#8a5a14" stroke-width="2"/></svg><h2 id="winText"></h2><button class="btn gold" id="again">もう一度遊ぶ</button><button class="btn" id="winUndo">一手戻す</button></div></div>
 <div class="ov" id="sheet"><div class="card"><h3>操作履歴</h3><ol id="list"></ol><button class="btn" id="chg">対戦方法を選び直す</button><button class="btn" id="close">閉じる</button></div></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -44,3 +44,4 @@
 <script src="script.js"></script>
 </body>
 </html>
+
