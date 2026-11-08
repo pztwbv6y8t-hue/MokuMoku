@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Quoridor Deluxe</title>
+<meta name="theme-color" content="#2a1a10">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Quoridor Deluxe">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="icon" href="assets/icon-192.png">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<h1>Quoridor <small>Deluxe</small></h1>
+<div class="pl" id="pl1"><i class="sw" style="background:var(--blue)"></i><b>青</b><span class="turn">手番</span><span class="pips" id="pips1"></span><em id="cnt1">10</em></div>
+<div class="board"><div class="inner" id="inner"><div id="cells"></div><div id="walls"></div><div id="dots"></div><div class="pv" id="pv" hidden></div><div id="pawns"></div></div><div class="toast" id="toast"></div></div>
+<div class="pl" id="pl0"><i class="sw" style="background:var(--red)"></i><b>赤</b><span class="turn">手番</span><span class="pips" id="pips0"></span><em id="cnt0">10</em></div>
+<div class="row modes">
+  <button class="btn" id="mMove">移動</button>
+  <button class="btn" id="mH">横壁 ▬</button>
+  <button class="btn" id="mV">縦壁 ▮</button>
+  <button class="btn gold" id="ok" disabled>決定</button>
+</div>
+<div class="row acts">
+  <button class="btn" id="undo">↶ 戻す</button>
+  <button class="btn" id="redo">やり直す ↷</button>
+  <button class="btn" id="hist">履歴</button>
+  <button class="btn" id="reset">最初から</button>
+</div>
+<div class="ov" id="win"><div class="card"><svg viewBox="0 0 64 40" width="64"><path d="M6 34 L2 8 L18 20 L32 4 L46 20 L62 8 L58 34Z" fill="#d9a93f" stroke="#8a5a14" stroke-width="2"/></svg><h2 id="winText"></h2><p>ゴール到達!</p><button class="btn gold" id="again">もう一度遊ぶ</button><button class="btn" id="winUndo">一手戻す</button></div></div>
+<div class="ov" id="sheet"><div class="card"><h3>操作履歴</h3><ol id="list"></ol><button class="btn" id="close">閉じる</button></div></div>
+<script src="game.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
