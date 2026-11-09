@@ -53,6 +53,13 @@ h1 .k{color:var(--gold);font-size:30px;margin-bottom:.35em;text-orientation:upri
 #list li{cursor:pointer;color:#f6e9cf99}
 #list li.done{color:var(--cream)}
 #list li.cur{color:var(--gold);font-weight:700}
+.zone.opp .row{display:none}
+.board.flip .inner{transform:rotate(180deg)}
+.board.flip .pawn svg{transform:rotate(180deg)}
+body.cpu .card h2.flip{display:none}
+.sub{margin:6px 0 0;font-size:13px;opacity:.75}
+.lv{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
 
 
