@@ -1,10 +1,11 @@
-/* Quoridor ルールエンジン(画面に依存しない)。row 0 = 画面上端。P0=赤(下から上へ)、P1=青(上から下へ)。
+/* ルールエンジン(画面に依存しない)。row 0 = 画面上端。P0=黒(下から上へ)、P1=白(上から下へ)。
    壁(r,c)は、マス(r,c)の右下の交点に置く2マス分の壁。 h:横壁(行r/r+1の間、列c,c+1) v:縦壁(列c/c+1の間、行r,r+1) */
 (function (root) {
   const N = 9, W = 8, GOAL = [0, 8];
   const DIRS = [[-1, 0], [1, 0], [0, -1], [0, 1]];
   const grid = () => Array.from({ length: W }, () => Array(W).fill(false));
   const create = () => ({ pos: [[8, 4], [0, 4]], left: [10, 10], h: grid(), v: grid(), turn: 0, win: -1 });
+  const clone = s => ({ pos: s.pos.map(a => a.slice()), left: s.left.slice(), h: s.h.map(r => r.slice()), v: s.v.map(r => r.slice()), turn: s.turn, win: s.win });
   const inb = (r, c) => r >= 0 && r < N && c >= 0 && c < N;
   const at = (a, r, c) => r >= 0 && r < W && c >= 0 && c < W && a[r][c];
 
@@ -32,19 +33,25 @@
     return out;
   }
 
-  function hasPath(s, p) {
-    const seen = new Set(), q = [s.pos[p]];
-    seen.add(s.pos[p].join());
-    while (q.length) {
-      const [r, c] = q.shift();
-      if (r === GOAL[p]) return true;
+  // ゴール行までの最短経路(コマは無視)。なければ null
+  function shortestPath(s, p) {
+    const start = s.pos[p][0] * 9 + s.pos[p][1], prev = new Int16Array(81).fill(-2), q = [start];
+    prev[start] = -1;
+    for (let i = 0; i < q.length; i++) {
+      const k = q[i], r = (k / 9) | 0, c = k % 9;
+      if (r === GOAL[p]) { const out = []; for (let x = k; x >= 0; x = prev[x]) out.push([(x / 9) | 0, x % 9]); return out.reverse(); }
       for (const [dr, dc] of DIRS) {
-        const nr = r + dr, nc = c + dc, k = nr + ',' + nc;
-        if (inb(nr, nc) && !seen.has(k) && !blocked(s, r, c, dr, dc)) { seen.add(k); q.push([nr, nc]); }
+        const nr = r + dr, nc = c + dc;
+        if (!inb(nr, nc) || blocked(s, r, c, dr, dc)) continue;
+        const nk = nr * 9 + nc;
+        if (prev[nk] !== -2) continue;
+        prev[nk] = k; q.push(nk);
       }
     }
-    return false;
+    return null;
   }
+  const hasPath = (s, p) => shortestPath(s, p) !== null;
+  const dist = (s, p) => { const x = shortestPath(s, p); return x ? x.length - 1 : 99; };
 
   // 置けない理由を返す(置けるなら null)
   function wallError(s, o, r, c) {
@@ -66,14 +73,16 @@
     if (m.p !== s.turn) throw new Error('not your turn');
     if (m.t === 'm') {
       if (!legalMoves(s).some(([r, c]) => r === m.r && c === m.c)) throw new Error('illegal move');
-      s.pos[m.p] = [m.r, m.c];
-      if (m.r === GOAL[m.p]) s.win = m.p;
     } else {
       const e = wallError(s, m.o, m.r, m.c);
       if (e) throw new Error('illegal wall: ' + e);
-      (m.o === 'h' ? s.h : s.v)[m.r][m.c] = true;
-      s.left[m.p]--;
     }
+    return applyFast(s, m);
+  }
+  // 検証済みの手を適用(AIの探索用。検証しない)
+  function applyFast(s, m) {
+    if (m.t === 'm') { s.pos[m.p] = [m.r, m.c]; if (m.r === GOAL[m.p]) s.win = m.p; }
+    else { (m.o === 'h' ? s.h : s.v)[m.r][m.c] = true; s.left[m.p]--; }
     if (s.win < 0) s.turn = 1 - s.turn;
     return s;
   }
@@ -81,6 +90,6 @@
   // 履歴から盤面を再構築(Undo/Redoは常にこれで整合を保つ)
   function replay(moves) { const s = create(); for (const m of moves) apply(s, m); return s; }
 
-  const api = { N, W, GOAL, create, legalMoves, wallError, apply, replay, hasPath, blocked };
+  const api = { N, W, GOAL, create, clone, legalMoves, wallError, apply, applyFast, replay, hasPath, shortestPath, dist, blocked };
   if (typeof module !== 'undefined') module.exports = api; else root.Q = api;
 })(typeof self !== 'undefined' ? self : this);
