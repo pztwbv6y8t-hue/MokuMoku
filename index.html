@@ -1,64 +1,52 @@
-/* コンピュータ対戦用のAI(外部通信なし)。盤面を評価して、先読みで一手を選ぶ。 */
-(function (root) {
-  const Q = typeof module !== 'undefined' ? require('./game.js') : root.Q;
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Moku-Moku</title>
+<meta name="theme-color" content="#1c1410">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Moku-Moku">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+<h1><span class="k">木</span>Moku-Moku</h1>
+<main class="col">
 
-  // 相手の最短経路を邪魔する壁の候補
-  function wallSlotsAgainst(s, p) {
-    const path = Q.shortestPath(s, p), out = [];
-    if (!path) return out;
-    for (let i = 0; i < path.length - 1; i++) {
-      const [r, c] = path[i], [nr, nc] = path[i + 1];
-      if (nr > r) out.push(['h', r, c], ['h', r, c - 1]);
-      else if (nr < r) out.push(['h', r - 1, c], ['h', r - 1, c - 1]);
-      else if (nc > c) out.push(['v', r, c], ['v', r - 1, c]);
-      else out.push(['v', r, c - 1], ['v', r - 1, c - 1]);
-    }
-    return out;
-  }
-  function cands(s) {
-    const p = s.turn, list = Q.legalMoves(s).map(([r, c]) => ({ p, t: 'm', r, c }));
-    if (s.left[p] > 0) {
-      const seen = new Set();
-      for (const [o, r, c] of wallSlotsAgainst(s, 1 - p)) {
-        const k = o + r + ',' + c;
-        if (seen.has(k)) continue; seen.add(k);
-        if (Q.wallError(s, o, r, c) === null) list.push({ p, t: 'w', o, r, c });
-      }
-    }
-    return list;
-  }
-  // me から見た盤面の良さ(最短距離の差と、残り壁の差)
-  const ev = (s, me) => (Q.dist(s, 1 - me) - Q.dist(s, me)) * 10 + (s.left[me] - s.left[1 - me]) * 4;
+<section class="zone top" data-p="1">
+  <div class="pl"><i class="sw" style="background:radial-gradient(circle at 35% 30%,#fff,#e6e6e6 55%,#b9b9b9)"></i><b>白</b><span class="turn">手番</span><span class="pips"></span><em class="cnt">10</em></div>
+  <div class="row modes"><button class="btn bMove">移動</button><button class="btn bH">横壁 ▬</button><button class="btn bV">縦壁 ▮</button><button class="btn gold bOk" disabled>決定</button></div>
+  <div class="row acts"><button class="btn bUndo">↶ 戻す</button><button class="btn bRedo">やり直す ↷</button><button class="btn bHist">履歴</button><button class="btn bReset">最初から</button></div>
+</section>
 
-  function mm(s, d, al, be, me) {
-    if (s.win >= 0) return s.win === me ? 1000 + d : -1000 - d;
-    if (d === 0) return ev(s, me);
-    const max = s.turn === me; let best = max ? -Infinity : Infinity;
-    for (const m of cands(s)) {
-      const t = Q.applyFast(Q.clone(s), m), v = mm(t, d - 1, al, be, me);
-      if (max) { if (v > best) best = v; if (v > al) al = v; } else { if (v < best) best = v; if (v < be) be = v; }
-      if (be <= al) break;
-    }
-    return best;
-  }
+<div class="board"><div class="inner" id="inner"><div id="cells"></div><div id="walls"></div><div id="dots"></div><div class="pv" id="pv" hidden></div><div id="pawns"></div></div><div class="toast" id="toast"></div></div>
 
-  // level: 1=かんたん 2=ふつう 3=つよい
-  function choose(s, level) {
-    const me = s.turn, depth = [1, 1, 2, 3][level] || 2, noise = [25, 25, 3, 0.5][level] ?? 3;
-    let ms = cands(s);
-    if (level === 1) ms = ms.filter(m => m.t === 'm' || Math.random() < 0.3);
-    let best = null, bv = -Infinity;
-    for (const m of ms) {
-      const t = Q.applyFast(Q.clone(s), m);
-      const v = mm(t, depth - 1, bv - noise, Infinity, me) + Math.random() * noise;
-      if (v > bv) { bv = v; best = m; }
-    }
-    return best;
-  }
+<section class="zone bot" data-p="0">
+  <div class="pl"><i class="sw" style="background:radial-gradient(circle at 35% 30%,#777,#111 55%,#000)"></i><b>黒</b><span class="turn">手番</span><span class="pips"></span><em class="cnt">10</em></div>
+  <div class="row modes"><button class="btn bMove">移動</button><button class="btn bH">横壁 ▬</button><button class="btn bV">縦壁 ▮</button><button class="btn gold bOk" disabled>決定</button></div>
+  <div class="row acts"><button class="btn bUndo">↶ 戻す</button><button class="btn bRedo">やり直す ↷</button><button class="btn bHist">履歴</button><button class="btn bReset">最初から</button></div>
+</section>
 
-  const api = { choose, cands };
-  if (typeof module !== 'undefined') module.exports = api; else root.AI = api;
-})(typeof self !== 'undefined' ? self : this);
-
+</main>
+</div>
+<div class="ov show" id="menu"><div class="card"><h2>Moku-Moku</h2>
+<button class="btn gold" id="mTwo">2人で対戦(1台)</button>
+<p class="sub">コンピュータと対戦</p>
+<button class="btn" id="mSide" data-me="0">あなたの色:黒(先手)</button>
+<div class="lv"><button class="btn" data-lv="1">かんたん</button><button class="btn" data-lv="2">ふつう</button><button class="btn" data-lv="3">つよい</button></div>
+<p class="sub">難しさを押すと始まります</p></div></div>
+<div class="ov" id="win"><div class="card"><h2 class="flip" id="winText2"></h2><svg viewBox="0 0 64 40" width="56"><path d="M6 34 L2 8 L18 20 L32 4 L46 20 L62 8 L58 34Z" fill="#d9a93f" stroke="#8a5a14" stroke-width="2"/></svg><h2 id="winText"></h2><button class="btn gold" id="again">もう一度遊ぶ</button><button class="btn" id="winUndo">一手戻す</button></div></div>
+<div class="ov" id="sheet"><div class="card"><h3>操作履歴</h3><ol id="list"></ol><button class="btn" id="chg">対戦方法を選び直す</button><button class="btn" id="close">閉じる</button></div></div>
+<script src="game.js"></script>
+<script src="ai.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
 
 
