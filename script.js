@@ -135,10 +135,15 @@
   });
   $('#again').onclick = restart; $('#winUndo').onclick = undo;
   $('#close').onclick = () => $('#sheet').classList.remove('show');
-  $('#chg').onclick = () => { localStorage.removeItem('mm-mode'); location.reload(); };
+  $('#chg').onclick = e => { // 2回タップで、今の対戦をやめてメニューに戻る
+    const b = e.currentTarget;
+    if (b.classList.contains('arm')) { location.reload(); return; }
+    b.classList.add('arm'); b.textContent = 'もう一度タップ(今の対戦は消えます)';
+    clearTimeout(b.t); b.t = setTimeout(() => { b.classList.remove('arm'); b.textContent = '対戦方法を選び直す'; }, 3000);
+  };
   $('#list').onclick = e => { const li = e.target.closest('li'); if (li && !cpu) { idx = +li.dataset.i + 1; sync(); pending = null; render(); } };
 
-  // 対戦方法の選択(選んだ方法は覚えて、次回から自動で始まる)
+  // 対戦方法の選択(起動するたびにメニューから選ぶ)
   function startCpu(me, level) {
     cpu = { me, cpu: 1 - me, level, busy: false };
     document.body.classList.add('cpu');
@@ -151,7 +156,7 @@
     render(); maybeCpu();
   }
   function start(m) {
-    localStorage.setItem('mm-mode', JSON.stringify(m)); $('#menu').classList.remove('show');
+    $('#menu').classList.remove('show');
     if (m.m === 'cpu') startCpu(m.me, m.level);
   }
   $('#mTwo').onclick = () => start({ m: 'two' });
@@ -159,7 +164,8 @@
   $$('[data-lv]').forEach(b => b.onclick = () => start({ m: 'cpu', level: +b.dataset.lv, me: +$('#mSide').dataset.me }));
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('service-worker.js').catch(() => {});
   render();
-  try { const saved = JSON.parse(localStorage.getItem('mm-mode') || 'null'); if (saved) start(saved); } catch (e) { localStorage.removeItem('mm-mode'); }
+  try { localStorage.removeItem('mm-mode'); } catch (e) {}
 })();
+
 
 
