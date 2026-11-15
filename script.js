@@ -2,7 +2,7 @@
   const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
   const EL = (cls, css) => { const d = document.createElement('div'); if (cls) d.className = cls; if (css) Object.assign(d.style, css); return d; };
   const g = 0.26, P = 1 + g, T = 9 + 8 * g, K = 100 / T; // 盤面を「マス幅=1、溝=g」の単位で扱う
-  const NAMES = ['黒', '白'], L = 'abcdefghi';
+  const NAMES = ['黒', '白'], L = 'abcdefghi', LV = ['', 'かんたん', 'ふつう', 'つよい', '最強'];
   const MSG = { overlap: '壁が重なっています', cross: '壁が交差しています', block: 'ゴールを塞ぐ壁は置けません', none: '壁がもうありません', range: '置けない場所です' };
   let moves = [], idx = 0, mode = 'move', pending = null, down = null, S = Q.create();
   let cpu = null; // コンピュータ対戦のとき {me, cpu, level, busy}
@@ -152,7 +152,8 @@
     zones[1 - me].classList.remove('top'); zones[1 - me].classList.add('opp'); zones[1 - me].style.order = 0;
     $('.board').style.order = 1;
     q(me, 'b').textContent = NAMES[me] + '(あなた)';
-    q(1 - me, 'b').textContent = NAMES[1 - me] + '(コンピュータ)';
+    q(1 - me, 'b').textContent = NAMES[1 - me];
+    const tag = EL('cpuTag'); tag.textContent = 'コンピュータ(' + LV[level] + ')'; zones[1 - me].prepend(tag); // 強さを盤面の上に表示
     render(); maybeCpu();
   }
   function start(m) {
@@ -166,6 +167,7 @@
   render();
   try { localStorage.removeItem('mm-mode'); } catch (e) {}
 })();
+
 
 
 
